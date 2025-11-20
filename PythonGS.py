@@ -69,12 +69,13 @@ def criar_usuario() -> None:
 # Solicita nome do funcionário
 def solicitar_nome_funcionario() -> str | None:
     while True:
+        limpar_tela()
         nome = input("Digite o nome do funcionário ou pressione 0 para voltar: ").strip().upper()
         if nome == "0":
             return None
         elif nome == "":
-            limpar_tela()
             print("É obrigatório escrever o nome do funcionário\n")
+            input("Pressione ENTER para continuar...")
         else:
             return nome
 
@@ -82,6 +83,7 @@ def solicitar_nome_funcionario() -> str | None:
 def solicitar_idade() -> int | None:
     while True:
         try:
+            limpar_tela()
             idade_input = input("Digite a idade (18-70) ou 0 para voltar: ").strip()
             if idade_input == "0":
                 return None
@@ -89,29 +91,28 @@ def solicitar_idade() -> int | None:
             if 18 <= idade <= 70:
                 return idade
             else:
-                limpar_tela()
                 print("A idade deve estar entre 18 e 70 anos.\n")
+                input("Pressione ENTER para continuar...")
         except ValueError:
-            limpar_tela()
             print("Digite um número válido para a idade.\n")
+            input("Pressione ENTER para continuar...")
 
 # Solicita modelo de trabalho
 def solicitar_modelo_trabalho() -> int | None:
-    tipos_validos = {"0", "1", "2"}
     while True:
         limpar_tela()
         print("Selecione o modelo de trabalho:")
-        print("0 - Presencial")
-        print("1 - Remoto")
-        print("2 - Híbrido")
+        print("1 - Presencial")
+        print("2 - Remoto")
+        print("3 - Híbrido")
         print("Digite '0' para voltar")
         
         try:
             opcao = int(input("Opção: ").strip())
             if opcao == 0:
                 return None
-            elif opcao in tipos_validos:
-                return opcao
+            elif opcao in {1, 2, 3}:
+                return opcao - 1
         except ValueError:
             print("Opção inválida. Tente novamente.\n")
             input("Pressione ENTER para continuar...")
@@ -119,12 +120,14 @@ def solicitar_modelo_trabalho() -> int | None:
 # Solicita setor
 def solicitar_setor() -> str | None:
     while True:
+        limpar_tela()
         setor = input("Digite o setor (ex: TI, Marketing, RH) ou 0 para voltar: ").strip().upper()
         if setor == "0":
             return None
         elif setor == "":
             limpar_tela()
             print("É obrigatório informar o setor.\n")
+            input("Pressione ENTER para continuar...")
         else:
             return setor
 
@@ -164,7 +167,7 @@ def inserir_funcionario_bd(nome: str, idade: int, modelo: int, setor: str) -> bo
         return False
 
 # Autenticação baseada no banco de dados
-def autentificacao() -> bool:
+def autenticacao() -> bool:
     while True:
         limpar_tela()
         print("Digite o nome do funcionário cadastrado ou digite 0 para cancelar:\n")
@@ -197,7 +200,8 @@ def procurar_id_funcionario_db(nome: str) -> int | None:
         if resultado:
             return resultado[0]
         return None
-    except:
+    except Exception as e:
+        print(f"Erro! Não foi possível encontrar funcionário: {e}")
         return None
 
 # ================= Tela de Login =================
@@ -218,7 +222,7 @@ def login():
                 print("Finalizando o código...")
                 return False
             case "1": 
-                liberar = autentificacao()
+                liberar = autenticacao()
                 if liberar:
                     return True
             case "2":
@@ -294,19 +298,21 @@ def gravar_informacoes_json():
         input("Pressione ENTER para continuar...")
 
 # ================= Avaliação Diária de Estresse =================
+
 def realizar_avaliacao_diaria():
     # 1. Mostra as perguntas do questionário
-    limpar_tela()
-    print("="*20,"Medidor de estresse", "="*20)
-    print("Responda as perguntas do questionário a seguir.")
 
     perguntas = perguntas_avaliacao()
     respostas = {}
 
     for tipo, pergunta in perguntas.items():
         while True:
+            limpar_tela()
             try:
-                print(f"{pergunta}")
+                print("="*20,"Medidor de estresse", "="*20)
+                print("Responda as perguntas do questionário a seguir.")
+
+                print(f"\n{pergunta}\n")
                 # Adiciona instruções para perguntas de concordancia/qualidade
                 if tipo in ["sono", "humor", "tensao", "energia", "motivacao"]:
                     print("Responda com um número de 1 a 5, sendo:")
@@ -315,13 +321,14 @@ def realizar_avaliacao_diaria():
                 # Caso não seja uma avaliação de concordancia/qualidade
                 else:
                     pass
-                resposta = int(input("Resposta (ou pressione 0 para cancelar): ").strip())
-                if resposta == 0:
+                entrada = input("Resposta (ou pressione ENTER para cancelar): ").strip()
+                if not entrada:
                     limpar_tela()
                     print("Avaliação cancelada. Retornando ao menu principal...")
                     return
+                resposta = int(entrada)
                 # Validação específica para perguntas que não são de 1-5
-                elif tipo == "horas_trabalho":
+                if tipo == "horas_trabalho":
                     if 4 <= resposta <= 10:
                         respostas[tipo] = resposta
                         break
@@ -352,7 +359,7 @@ def realizar_avaliacao_diaria():
                         print("Digite um número entre 1 e 5!")
             except ValueError:
                 limpar_tela()
-                print("Digite um número válido.")
+                input("Digite um número válido. Pressione ENTER para continuar...")
                 continue
     
     # 2. Após a resposta. Calcula o nível médio de estresse, o tipo com o pior valor e a categoria de estresse
@@ -389,6 +396,7 @@ def perguntas_avaliacao() -> dict:
         "exercicio_semana": "Quantos dias se exercitou esta semana (0-7): "
     }
 
+
     return perguntas
 
 def calculadora_estresse(respostas: dict) -> float:
@@ -400,7 +408,6 @@ def calculadora_estresse(respostas: dict) -> float:
     # formula: 10 * (valor - resposta_minima) / (resposta_maxima - resposta_minima)
     tensao = 10*(respostas["tensao"] - 1)/4
     horas_trabalho = 10*(respostas["horas_trabalho"] - 4)/6
-    exercicio = 10*(respostas["exercicio_semana"])/7
 
     # ========== Diminuem estresse ===========
     # formula: 10 * (1 - (valor - resposta_minima) / (resposta_maxima - resposta_minima))
@@ -408,7 +415,8 @@ def calculadora_estresse(respostas: dict) -> float:
     humor = 10*(1 - (respostas["humor"] - 1)/4)
     energia = 10*(1 - (respostas["energia"] - 1)/4)
     motivacao = 10*(1 - (respostas["motivacao"] - 1)/4)
-    pausas = 10*(1 - (respostas["pausas_diarias"] - 0)/5)
+    pausas = 10*(1 - respostas["pausas_diarias"]/5)
+    exercicio = 10*(1 - respostas["exercicio_semana"]/7)
 
     # ============ Nível de estresse (Média) ============
     estresse = (sono + humor + tensao + energia + motivacao + horas_trabalho + pausas + exercicio) / 8
@@ -454,7 +462,7 @@ def guardar_avaliacao(respostas: dict, estresse: float, categoria_estresse: str,
         ))
         
         # Recupera o ID do registro que acabou de ser inserido
-        sql_id_registro = "SELECT id_registro FROM T_ABTG_REGISTRO_DIARIO WHERE id_funcionario = :AND dt_registro = :2"
+        sql_id_registro = "SELECT id_registro FROM T_ABTG_REGISTRO_DIARIO WHERE id_funcionario = :1 AND dt_registro = :2"
         inst_consulta.execute(sql_id_registro, (id_funcionario, dt_registro))
         id_registro = inst_consulta.fetchone()[0]
 
@@ -519,7 +527,7 @@ def ver_historico_registros():
 # funcao que lista todos os itens da tabela
 def listar_historico() -> pd.DataFrame | None:  
     id_funcionario = pegar_id_funcionario_logado()
-    lista_doutores = []  # Lista para captura de dados do Banco
+    lista_dados = []  # Lista para captura de dados do Banco
     try:
         # Instrução SQL com base no que foi selecinado na tela de menu
         inst_consulta.execute("""SELECT f.id_funcionario, f.nm_funcionario, a.nivel_estresse, r.dt_registro FROM T_ABTG_FUNCIONARIO f
@@ -531,14 +539,14 @@ def listar_historico() -> pd.DataFrame | None:
 
         # Insere os valores da tabela na Lista
         for dt in data:
-            lista_doutores.append(dt)
+            lista_dados.append(dt)
 
         # ordena a lista
-        lista_doutores = sorted(lista_doutores)
+        lista_dados = sorted(lista_dados)
 
         # Gera um DataFrame com os dados da lista utilizando o Pandas
         dados_df = pd.DataFrame.from_records(
-            lista_doutores, columns=['id_funcionario', 'nm_funcionario', 'nivel_estresse', 'dt_registro'], index='id_funcionario')
+            lista_dados, columns=['id_funcionario', 'nm_funcionario', 'nivel_estresse', 'dt_registro'], index='id_funcionario')
         
         # Verifica se não há registro através do dataframe
         if dados_df.empty:
@@ -704,3 +712,5 @@ while conexao:
     logado = login()
     if logado:
         menu()
+
+# TODO Fazer grava JSON funcionar corretamente com os dataframes, atualmente está com erro na função trasformar_df_dicionario e fazer a mensagem da IA funcionar corretamente.
