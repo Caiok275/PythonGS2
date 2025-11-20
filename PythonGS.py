@@ -4,7 +4,7 @@ import oracledb
 import pandas as pd
 from datetime import datetime
 
-# Váriavel que armazena o ID do funcionário após um login bem sucedido
+# Váriavel que armazena o ID e o nome do funcionário após um login bem sucedido
 id_funcionario_logado = None
 usuario_logado = ""
 
@@ -25,7 +25,8 @@ def ler_txt(nm_arq: str) -> dict:
     except FileNotFoundError:
         pass  # Se não houver arquivo, apenas retorna vazio
     return dados    
-    
+
+# retorna a string armazenada na variável global    
 def pegar_usuario_logado() -> str:
     global usuario_logado
     return usuario_logado
@@ -281,15 +282,15 @@ def gravar_informacoes_json():
                 break
             case "1":
                 df = listar_historico()
-                gravar_df_json(df)
+                gravar_df_json(df, "historico")
                 break
             case "2":
                 df = listar_analise_estresse()
-                gravar_df_json(df)
+                gravar_df_json(df, "analise")
                 break
             case "3":
                 df = listar_sugestoes_ia()
-                gravar_df_json(df)
+                gravar_df_json(df, "sugestoes")
                 break
             case _:
                 limpar_tela()
@@ -329,21 +330,21 @@ def realizar_avaliacao_diaria():
                 resposta = int(entrada)
                 # Validação específica para perguntas que não são de 1-5
                 if tipo == "horas_trabalho":
-                    if 4 <= resposta <= 10:
+                    if resposta >= 4 and resposta <= 10:
                         respostas[tipo] = resposta
                         break
                     else:
                         limpar_tela()
                         print("Digite um número entre 4 e 10!")
                 elif tipo == "pausas_diarias":
-                    if 0 <= resposta <= 5:
+                    if resposta >= 0 and resposta <= 5:
                         respostas[tipo] = resposta
                         break
                     else:
                         limpar_tela()
                         print("Digite um número entre 0 e 5!")
                 elif tipo == "exercicio_semana":
-                    if 0 <= resposta <= 7:
+                    if resposta >= 0 and resposta <= 7:
                         respostas[tipo] = resposta
                         break
                     else:
@@ -351,7 +352,7 @@ def realizar_avaliacao_diaria():
                         print("Digite um número entre 0 e 7!")
                 # Validação padrão para perguntas de 1-5
                 else:
-                    if 1 <= resposta <= 5:
+                    if resposta >= 1 and resposta <= 5:
                         respostas[tipo] = resposta
                         break
                     else:
@@ -366,16 +367,19 @@ def realizar_avaliacao_diaria():
     estresse_medio = calculadora_estresse(respostas)
     pior_tipo = pegar_pior_tipo(respostas)
     categoria_estresse_valor = categoria_estresse(estresse_medio)
+    sugestao = sugestoes_ia(pior_tipo)
 
     # 3. Mostra o resultado
     limpar_tela()
     print("="*20,"Resultado","="*20)
     print(f"Seu nível médio de estresse é: {estresse_medio:.2f}")
     print(f"Sua categoria de estresse é: {categoria_estresse_valor}")
+    print(f"Pior tipo identificado: {pior_tipo}")
+    print(f"Sugestão da IA: {sugestao}")
     print()
 
     # 4. Armazena os dados no banco de dados
-    gravado = guardar_avaliacao(respostas, estresse_medio, categoria_estresse_valor, pior_tipo)
+    gravado = guardar_avaliacao(respostas, estresse_medio, categoria_estresse_valor, pior_tipo, sugestao)
     if not gravado:
         print("Houve algum erro com a conexão com o banco de dados, contate o moderador.")
     else:
@@ -427,10 +431,11 @@ def calculadora_estresse(respostas: dict) -> float:
 def pegar_pior_tipo(respostas: dict) -> str:
     # Se algum dos items estiverem abaixo da média, identifica o pior tipo (caso haja empate, retorna o primeiro)
     for tipo, valor in respostas.items():
-        if valor <= 3:
-            return next(tipo)
+        if valor < 5:
+            return tipo
         else:
             return "Nenhum"
+
 
 # Avalia a média calculada e retorna a categoria de estresse
 def categoria_estresse(estresse: float) -> str:
@@ -441,9 +446,28 @@ def categoria_estresse(estresse: float) -> str:
     else:
         return "Alto"
 
+# Retorna a mensagem de sugestão que condiz com o pior tipo identificado
+def sugestoes_ia(pior_tipo: str) -> None:
+
+    sugestoes = {
+        "sono": "Tente estabelecer uma rotina de sono consistente, evitando eletrônicos antes de dormir.",
+        "humor": "Pratique atividades que você gosta e que elevem seu ânimo, como hobbies ou exercícios.",
+        "tensao": "Incorpore técnicas de relaxamento, como meditação ou respiração profunda, em sua rotina diária.",
+        "energia": "Mantenha uma alimentação equilibrada e faça pausas regulares para recarregar suas energias.",
+        "motivacao": "Defina metas claras e alcançáveis para manter o foco e a motivação no trabalho.",
+        "horas_trabalho": "Tente limitar suas horas de trabalho diárias para evitar sobrecarga e burnout.",
+        "pausas_diarias": "Faça pausas curtas e frequentes durante o dia para melhorar a concentração e reduzir o estresse.",
+        "exercicio_semana": "Incorpore exercícios físicos regulares em sua rotina semanal para melhorar o bem-estar geral.",
+        "Nenhum": "Parabéns! Seu nível de estresse está equilibrado. Continue mantendo hábitos saudáveis."
+    }
+
+    for tipo, sugestao in sugestoes.items():
+        if tipo == pior_tipo:
+            return sugestao
+
 # Com base na avaliação, os dados serão armazenadas nas seguites tabelas:
 # T_ABTG_REGISTRO_DIARIO, T_ABTG_ANALISE_ESTRESSE, T_ABTG_SUGESTAO_IA
-def guardar_avaliacao(respostas: dict, estresse: float, categoria_estresse: str, pior_tipo: str) -> bool:
+def guardar_avaliacao(respostas: dict, estresse: float, categoria_estresse: str, pior_tipo: str, sugestao: str) -> bool:
     try:
         id_funcionario = pegar_id_funcionario_logado()
         dt_registro = datetime.now()
@@ -478,9 +502,6 @@ def guardar_avaliacao(respostas: dict, estresse: float, categoria_estresse: str,
         inst_consulta.execute(sql_get_analise, (id_registro,))
         id_analise = inst_consulta.fetchone()[0]
 
-        # Gera sugestões baseadas na análise de estresse
-        sugestao = sugestoes_ia(pior_tipo)
-
         # Insere a sugestão na tabela de sugestões da IA
         sql_sugestao = """INSERT INTO T_ABTG_SUGESTAO_IA 
                   (id_analise, categoria, mensagem_ia, dt_sugestao)
@@ -495,24 +516,6 @@ def guardar_avaliacao(respostas: dict, estresse: float, categoria_estresse: str,
         print(f"Erro ao guardar avaliação: {e}")
         return False
         
-# Retorna a mensagem de sugestão que condiz com o pior tipo identificado
-def sugestoes_ia(pior_tipo: str) -> None:
-
-    sugestoes = {
-        "sono": "Tente estabelecer uma rotina de sono consistente, evitando eletrônicos antes de dormir.",
-        "humor": "Pratique atividades que você gosta e que elevem seu ânimo, como hobbies ou exercícios.",
-        "tensao": "Incorpore técnicas de relaxamento, como meditação ou respiração profunda, em sua rotina diária.",
-        "energia": "Mantenha uma alimentação equilibrada e faça pausas regulares para recarregar suas energias.",
-        "motivacao": "Defina metas claras e alcançáveis para manter o foco e a motivação no trabalho.",
-        "horas_trabalho": "Tente limitar suas horas de trabalho diárias para evitar sobrecarga e burnout.",
-        "pausas_diarias": "Faça pausas curtas e frequentes durante o dia para melhorar a concentração e reduzir o estresse.",
-        "exercicio_semana": "Incorpore exercícios físicos regulares em sua rotina semanal para melhorar o bem-estar geral.",
-        "Nenhum": "Parabéns! Seu nível de estresse está equilibrado. Continue mantendo hábitos saudáveis."
-    }
-
-    for tipo, sugestao in sugestoes.items():
-        if tipo == pior_tipo:
-            return sugestao
 
 # ================ Ver Histórico de Registros =================
 def ver_historico_registros():
@@ -656,37 +659,74 @@ def gravar_json(nome_arquivo: str, dados: dict) -> bool:
     except:
         print("Erro ao gravar o arquivo JSON.")
         return False
-    
-def nome_arquivo_json(tipo: str) -> str | None:
+
+# Pergunta o nome do arquivo e adciona a extensão .json
+def nome_arquivo_json() -> str | None:
     nm_arquivo = input("Digite o nome do arquivo (sem extensão) ou 0 para cancelar: ").strip()
     if nm_arquivo == "0":
         return None
     return f"{nm_arquivo}.json"
 
-def gravar_df_json(df: pd.DataFrame = None):
-    nm_arquivo = nome_arquivo_json()
-    if nm_arquivo is None:
-        return
+# Obtem o nome do arquivo e com base na String tipo, seleciona a função especifica para cada DataFrame
+def gravar_df_json(df: pd.DataFrame, tipo: str) -> None:
     if df is None:
         print("Nenhum registro encontrado para salvar.")
         return
-    dados = trasformar_df_dicionario(df)
+    nm_arquivo = nome_arquivo_json(tipo)
+    if nm_arquivo is None:
+        return
+    
+    # Seleciona a função de conversão apropriada baseada no tipo
+    if tipo == "historico":
+        dados = df_historico_to_dict(df)
+    elif tipo == "analise":
+        dados = df_analise_to_dict(df)
+    elif tipo == "sugestoes":
+        dados = df_sugestoes_to_dict(df)
+    else:
+        print("Tipo de dado inválido.")
+        return
+    
     gravado = gravar_json(nm_arquivo, dados)
     if gravado:
-        print("Histórico salvo com sucesso!")   
-    
-def trasformar_df_dicionario(df: pd.DataFrame) -> dict:
+        print("Dados salvos com sucesso!")   
+
+# Funções que trasformam DataFrames em dicionários
+def df_historico_to_dict(df: pd.DataFrame) -> dict:
     dicionario = {}
     for i, coluna in df.iterrows():
         dicionario[i] = {
             "id_funcionario": i,
             "nm_funcionario": coluna["nm_funcionario"],
             "nivel_estresse": coluna["nivel_estresse"],
-            "dt_avaliacao": coluna["dt_avaliacao"].strftime("%d/%m/%Y"),
+            "dt_registro": coluna["dt_registro"].strftime("%d/%m/%Y"),
         }
 
     return dicionario
 
+def df_analise_to_dict(df: pd.DataFrame) -> dict:
+    dicionario = {}
+    for i, coluna in df.iterrows():
+        dicionario[i] = {
+            "id_analise": i,
+            "nivel_estresse": coluna["nivel_estresse"],
+            "categoria_estresse": coluna["categoria_estresse"],
+            "dt_analise": coluna["dt_analise"].strftime("%d/%m/%Y"),
+        }
+
+    return dicionario
+
+def df_sugestoes_to_dict(df: pd.DataFrame) -> dict:
+    dicionario = {}
+    for i, coluna in df.iterrows():
+        dicionario[i] = {
+            "id_sugestao": i,
+            "categoria": coluna["categoria"],
+            "mensagem_ia": coluna["mensagem_ia"],
+            "dt_sugestao": coluna["dt_sugestao"].strftime("%d/%m/%Y"),
+        }
+
+    return dicionario
 
 # ================= Finalizar Código =================
 def sair():
@@ -712,5 +752,3 @@ while conexao:
     logado = login()
     if logado:
         menu()
-
-# TODO Fazer grava JSON funcionar corretamente com os dataframes, atualmente está com erro na função trasformar_df_dicionario e fazer a mensagem da IA funcionar corretamente.
