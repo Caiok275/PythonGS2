@@ -6,5 +6,5 @@ Para utilizar o código, além da instalação do Python e do seu editor de cód
 
 Para instalar ambas as bibliotecas, abra o terminal no seu editor de código e execute os seguintes comandos:
 
-```bash pip install oracledb ``` 
-```pip install pandas ```
+```pip install oracledb``` 
+```pip install pandas```
